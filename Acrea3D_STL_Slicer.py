@@ -12,8 +12,8 @@ class print_data():
         self.height_print_mm = None
         self.num_layers = None
         self.layer_height_mm = 0.01
-        self.pixel_pitch_mm = 0.0076
-        self.resolution_px2 = [2560,1600]
+        self.pixel_pitch_mm = 0.01
+        self.resolution_px2 = [100,100]
 
         self.volume_mm3 = None
         
@@ -45,7 +45,35 @@ class print_data():
         #print(self.significant_meshes)
         return self.significant_meshes
 
+    def get_mesh_vectors(self, mesh):
+        p1 = [mesh[0],mesh[1],mesh[2]]
+        p2 = [mesh[3],mesh[4],mesh[5]]
+        p3 = [mesh[6],mesh[7],mesh[8]]
+        va = p1
+
+        def get_vector(point1, point2):
+            print("POINTS ", point1, point2)
+            vector = []
+            for i in range(3):
+                vector.append(point1[i] - point2[i])
+            return vector
+        va = p1
+        va.append(get_vector(p1,p2))
+        va.append(get_vector(p1,p3))
+        vb = p1
+        vb.append(get_vector(p2,p1))
+        vb.append(get_vector(p2,p3))
+        
+        return va, vb
+
+    def project_mesh_xyz(self, mesh):
+        point1_vectors, point2_vectors = get_mesh_vectors(mesh)
+
+
+    ## returns all the points on a given mesh
     def map_mesh_xyz(self, mesh):
+        a,b = self.get_mesh_vectors(mesh)
+        print("GET_MESH_VECTORS ", a, b)
         pixel_list = []
         for i in range(3):
             point = [mesh[3*i], mesh[3*i+1], mesh[3*i+2]]
@@ -332,7 +360,7 @@ class print_data():
         # png_image = np.array(png_image)
         # print(png_image)
         path = os.getcwd()
-        file_name = "{}/{}.png".format(path, file_base_name)
+        file_name = "{}/slices/{}.png".format(path, file_base_name)
         png_file = open(file_name, 'wb')
         # png.from_array(png_image, mode="L", info= {height = 2, width = 2}).save("/tmp/foo.png")
         write_png = png.Writer(self.resolution_px2[1], self.resolution_px2[0], greyscale = True)
@@ -373,7 +401,7 @@ class print_data():
 
 if __name__ == "__main__":
     my_print = print_data()
-    my_print.import_stl('small_sized_block_withVoid.stl')
+    my_print.import_stl("./STL_Files/Cube.stl")
     my_print.read_values()
     # mesh = my_print.get_significant_meshes()
     # my_print.map_mesh_xyz(mesh[0])
