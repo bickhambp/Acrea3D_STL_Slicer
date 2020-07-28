@@ -11,15 +11,16 @@ class print_data():
         self.print_file_path = None
         self.height_print_mm = None
         self.num_layers = None
-        self.layer_height_mm = 0.01
-        self.pixel_pitch_mm = 0.01
-        self.resolution_px2 = [100,100]
+        self.layer_height_mm = 0.1
+        self.pixel_pitch_mm = 0.1
+        self.resolution_px2 = [10,10]
 
         self.volume_mm3 = None
         
         self.significant_meshes = []
         self.significant_points = []
         self.png_blueprint = [[None for y in range(self.resolution_px2[1])] for x in range(self.resolution_px2[0])]
+        print("BLUE PRINT", self.png_blueprint)
         pass
 
     def import_stl(self, stl):
@@ -57,199 +58,262 @@ class print_data():
             for i in range(3):
                 vector.append(point1[i] - point2[i])
             return vector
-        va = p1
+        #va = p1
+        va = []
         va.append(get_vector(p1,p2))
         va.append(get_vector(p1,p3))
-        vb = p1
-        vb.append(get_vector(p2,p1))
-        vb.append(get_vector(p2,p3))
+        va.append(get_vector(p2, p3))
+        #vb = p1
+        #vb.append(get_vector(p2,p1))
+        #vb.append(get_vector(p2,p3))
         
-        return va, vb
+        #return va, vb
+        return va, p1, p2
+
+    def get_border_point(self, vector, point, mesh):
+        starting_point_x = int(point[0] / self.pixel_pitch_mm) * self.pixel_pitch_mm
+        temp_list_points = []
+        num_points_x = 0
+        if vector[0] != 0:
+            num_points_x = int(int(point[0] /self.pixel_pitch_mm) - int(vector[0] / self.pixel_pitch_mm))
+        for num_x in range(num_points_x):
+            x = num_x * self.pixel_pitch_mm
+            y = 0
+            if vector[0] != 0:
+                y = vector[1] / vector[0] * x
+            temp_point = [round(point[0] + x, 10), round(point[1] + y,5)]
+            temp_list_points.append(temp_point)
+
+        return temp_list_points
+
+    def get_points_on_mesh(self, list_points):
+        for i in range(0,len(list_points),2):
+            self.get_z(point, mesh)
+
+            
 
     def project_mesh_xyz(self, mesh):
-        point1_vectors, point2_vectors = get_mesh_vectors(mesh)
+        list_vectors, p1, p2 = self.get_mesh_vectors(mesh)
+        list_border_points = []
 
-
-    ## returns all the points on a given mesh
-    def map_mesh_xyz(self, mesh):
-        a,b = self.get_mesh_vectors(mesh)
-        print("GET_MESH_VECTORS ", a, b)
-        pixel_list = []
-        for i in range(3):
-            point = [mesh[3*i], mesh[3*i+1], mesh[3*i+2]]
-            pixel_list.append(point)
-        # print("Pixel List: ", pixel_list)
-
-        def get_boundaries(axis):
-            pmax = pixel_list[0][axis]
-            #print(pmax)
-            pmin = pixel_list[0][axis]
-            #print(pmin)
-            for i in range(len(pixel_list)):
-                #print("Pixel List", pixel_list[i][axis])
-                if(int(pixel_list[i][axis]) > pmax):
-                    pmax = pixel_list[i][axis]
-                if(int(pixel_list[i][axis]) < pmin):
-                    pmin = pixel_list[i][axis]
-            return [pmin, pmax]
-                
-        boundaries_mm = [get_boundaries(0)]
-        boundaries_mm.append(get_boundaries(1))
-        boundaries_mm.append(get_boundaries(2))
-        # print("BOUNDARIES: ", boundaries_mm)
-
-        def get_starting_pos(axis):
-            if(boundaries_mm[axis][0] % self.pixel_pitch_mm < self.pixel_pitch_mm / 2): 
-                pos = int(boundaries_mm[axis][0] / self.pixel_pitch_mm) * self.pixel_pitch_mm + 1/2 * self.pixel_pitch_mm
-            else:
-                pos = int(boundaries_mm[axis][0] / self.pixel_pitch_mm) * self.pixel_pitch_mm + 3/2 * self.pixel_pitch_mm
-            return pos
-
-        starting_point = [get_starting_pos(0)]
-        starting_point.append(get_starting_pos(1))
-
-        # print("Starting Point", starting_point)
-
-        def get_angle(temp_point, pivot):
-            if temp_point[0] >= pivot[0]:
-                if temp_point[1] >= pivot[1]:       #Quadrant 1
-                    temp_angle = ((np.arctan((temp_point[1] - pivot[1]) / (temp_point[0] - pivot[0])) + 2 * np.pi)) % (2 * np.pi)
-                    # print("Q1: ", temp_angle)
-                else:       #Quandrant 4
-                    temp_angle = ((np.arctan((temp_point[1] - pivot[1]) / (temp_point[0] - pivot[0])) + 2 * np.pi)) % (2 * np.pi)
-                    # print("Q4: ", temp_angle)
-            else:
-                if temp_point[1] >= pivot[1]:       #Quadrant 2
-                    temp_angle = np.pi - abs(np.arctan((temp_point[1] - pivot[1]) / (temp_point[0] - pivot[0])))
-                    # print("Q2: ", temp_angle)
-                else:                   #Quadrant 3
-                     temp_angle = np.pi + abs(np.arctan((temp_point[1] - pivot[1]) / (temp_point[0] - pivot[0])))
-                    #  print("Q3: ", temp_angle)
-            return temp_angle
-
-        def get_min_max_angle_rad(points):
-            # print(angle1_rad * 360 / (2 * np.pi))
-            # print(angle2_rad * 360 / (2 * np.pi))
-
-            if (points[1][0] - points[0][0]) == 0:
-                if (points[1][1] - points[0][1] > 0):
-                    angle1_rad = np.pi/2
-                else:
-                    angle1_rad = 3 * np.pi / 2
-            else:
-                angle1_rad = get_angle(points[1],points[0])
-                #angle1_rad = ((np.arctan((points[1][1] - points[0][1]) / (points[1][0] - points[0][0])) + 2 * np.pi)) % (2 * np.pi)
-            if (points[2][0] - points[0][0]) == 0:
-                if (points[2][1] - points[0][1] > 0):
-                    angle2_rad = np.pi/2
-                else:
-                    angle2_rad = 3 * np.pi / 2                
-            else:
-                angle2_rad = get_angle(points[2],points[0])
-                #angle2_rad = ((np.arctan((points[2][1] - points[0][1]) / (points[2][0] - points[0][0])) + 2 * np.pi)) % (2 * np.pi)
-
-            # print(get_angle(points[1],points[0]))
-            # print(get_angle(points[2],points[0]))
-
-            diff_angle_rad = angle1_rad - angle2_rad
-            if diff_angle_rad < 0:
-                if abs(diff_angle_rad) < np.pi:
-                    min_angle_rad = angle1_rad
-                    max_angle_rad = angle2_rad
-                else:
-                    min_angle_rad = angle2_rad
-                    max_angle_rad = angle1_rad
-            else:
-                if abs(diff_angle_rad) < np.pi:
-                    min_angle_rad = angle2_rad
-                    max_angle_rad = angle1_rad
-                else:
-                    min_angle_rad = angle1_rad
-                    max_angle_rad = angle2_rad
-
-            # print(min_angle_rad, max_angle_rad)
-            return [min_angle_rad, max_angle_rad, points[0]]
-
-        angle1_min_max_rad = get_min_max_angle_rad(pixel_list)
-        angle2_min_max_rad = get_min_max_angle_rad([pixel_list[1],pixel_list[2],pixel_list[0]])
+        list_border_points.extend(self.get_border_point(list_vectors[0], p1, mesh))
+        list_border_points.extend(self.get_border_point(list_vectors[1], p1, mesh))
+        list_border_points.extend(self.get_border_point(list_vectors[2], p2, mesh))
+        list_border_points.sort()
 
         list_points = []
+        print(list_border_points)
 
-        num_x_pixels = (boundaries_mm[0][1] - starting_point[0]) / self.pixel_pitch_mm
-        num_y_pixels = (boundaries_mm[1][1] - starting_point[1]) / self.pixel_pitch_mm
+        for i in range(0,len(list_border_points),2):
+            num_points_y = int(round((list_border_points[i+1][1] /self.pixel_pitch_mm),5)) - int(round((list_border_points[i][1] / self.pixel_pitch_mm),5)) + 1
+            # print("#Y", num_points_y)
+            for num_y in range(num_points_y):
+                x = round(list_border_points[i][0], 8)
+                y = round(num_y * self.pixel_pitch_mm + list_border_points[i][1], 8)
+                z = self.get_z([x,y], mesh)        
+                list_points.append([x,y,z])
 
-        for x in np.arange(num_x_pixels):
-            for y in np.arange(num_y_pixels):
-                new_point = [starting_point[0] + x * self.pixel_pitch_mm, starting_point[1] + y * self.pixel_pitch_mm]
-                list_points.append(new_point)
-
-        # print("LIST POINT: ", list_points)
-                
-        def check_point_in_mesh(point):
-            # angle = round(np.arctan((point[0] - pixel_list[0][0]) / (point[1] - pixel_list[0][1])) + 2 * np.pi, 5)
-            # print("Flag 123 ",angle)
-            # print("Flag 124 ", angle1_min_max_rad[0])
-            # print("Flag 125 ", angle1_min_max_rad[1])
-
-            def check_angle(angle_min_max):
-                reference_point = angle_min_max[2]
-                angle = round(get_angle(point, reference_point), 5) 
-                # print("Min Max", angle_min_max)
-                # print("Angle: ", angle)
-                # print("Point: ", point)
-                if point[0] == reference_point[0] and point[1] == reference_point[1]:
-                    return True
-                if angle_min_max[0] > angle_min_max[1]:
-                    # print(1)
-                    if angle >= round(angle_min_max[0], 5) and angle <= np.pi * 2:
-                        # print(1.1)
-                        return True
-                    elif angle <= round(angle_min_max[1], 5) and angle >= 0:
-                        # print(1.2)
-                        return True
-                    else:
-                        # print(1.3)
-                        return False
-                else:
-                    # print(2)
-                    if angle >= round(angle_min_max[0], 5) and angle <= round(angle_min_max[1], 5):
-                        # print(2.1)
-                        return True
-                    else:
-                        # print(2.2)
-                        return False
-
-            if check_angle(angle1_min_max_rad) and check_angle(angle2_min_max_rad):
-                return True
-            else:
-                return False
-        #print(mesh)
-      #  print(check_point_in_mesh([0.5 ,0.5 ,1000]))
-
-        def get_z(point):
-            a,b,c = mesh[9],mesh[10],mesh[11]
-            #print(mesh,a,b,c) 
-            x,y,z = point[0], point[1], 0
-            x1, y1, z1 = mesh[0], mesh[1],  mesh[2]
-            if x1 == x and y1 == y:
-                z2 = z1
-            else:
-                z2 = ((a * (x1 - 2 * x) + b * ( y1 - 2 * y)) / c) + z1 - z
-            return z2
-
-        #print(get_z([0.5,0.5,0.5]))
-        points_on_mesh = []
         # print("LP: ", list_points)
-        for i in list_points:
-            # print ("i: ", i)
-            if check_point_in_mesh(i):
-                point = [i[0],i[1],get_z(i)]
-                points_on_mesh.append(point)
-        #        print(point)
-            #print(get_z(i))
-        #print(len(list_points))
-        #print("POINTS ON MESH: ", points_on_mesh)
-        return points_on_mesh
+        list_points.sort()
+        print("LP: ", list_points)
+
+        return list_points 
+
+    def get_z(self, point, mesh):
+        a,b,c = mesh[9],mesh[10],mesh[11]
+        #print(mesh,a,b,c) 
+        x,y,z = point[0], point[1], 0
+        x1, y1, z1 = mesh[0], mesh[1],  mesh[2]
+        if x1 == x and y1 == y:
+            z2 = z1
+        else:
+            z2 = ((a * (x1 - 2 * x) + b * ( y1 - 2 * y)) / c) + z1 - z
+        return z2            
+            
+
+
+
+    # ## returns all the points on a given mesh
+    # def map_mesh_xyz(self, mesh):
+    #     self.project_mesh_xyz(mesh)
+    #     a,b = self.get_mesh_vectors(mesh)
+    #     print("GET_MESH_VECTORS ", a, b)
+    #     pixel_list = []
+    #     for i in range(3):
+    #         point = [mesh[3*i], mesh[3*i+1], mesh[3*i+2]]
+    #         pixel_list.append(point)
+    #     # print("Pixel List: ", pixel_list)
+
+    #     def get_boundaries(axis):
+    #         pmax = pixel_list[0][axis]
+    #         #print(pmax)
+    #         pmin = pixel_list[0][axis]
+    #         #print(pmin)
+    #         for i in range(len(pixel_list)):
+    #             #print("Pixel List", pixel_list[i][axis])
+    #             if(int(pixel_list[i][axis]) > pmax):
+    #                 pmax = pixel_list[i][axis]
+    #             if(int(pixel_list[i][axis]) < pmin):
+    #                 pmin = pixel_list[i][axis]
+    #         return [pmin, pmax]
+                
+    #     boundaries_mm = [get_boundaries(0)]
+    #     boundaries_mm.append(get_boundaries(1))
+    #     boundaries_mm.append(get_boundaries(2))
+    #     # print("BOUNDARIES: ", boundaries_mm)
+
+    #     def get_starting_pos(axis):
+    #         if(boundaries_mm[axis][0] % self.pixel_pitch_mm < self.pixel_pitch_mm / 2): 
+    #             pos = int(boundaries_mm[axis][0] / self.pixel_pitch_mm) * self.pixel_pitch_mm + 1/2 * self.pixel_pitch_mm
+    #         else:
+    #             pos = int(boundaries_mm[axis][0] / self.pixel_pitch_mm) * self.pixel_pitch_mm + 3/2 * self.pixel_pitch_mm
+    #         return pos
+
+    #     starting_point = [get_starting_pos(0)]
+    #     starting_point.append(get_starting_pos(1))
+
+    #     # print("Starting Point", starting_point)
+
+    #     def get_angle(temp_point, pivot):
+    #         if temp_point[0] >= pivot[0]:
+    #             if temp_point[1] >= pivot[1]:       #Quadrant 1
+    #                 temp_angle = ((np.arctan((temp_point[1] - pivot[1]) / (temp_point[0] - pivot[0])) + 2 * np.pi)) % (2 * np.pi)
+    #                 # print("Q1: ", temp_angle)
+    #             else:       #Quandrant 4
+    #                 temp_angle = ((np.arctan((temp_point[1] - pivot[1]) / (temp_point[0] - pivot[0])) + 2 * np.pi)) % (2 * np.pi)
+    #                 # print("Q4: ", temp_angle)
+    #         else:
+    #             if temp_point[1] >= pivot[1]:       #Quadrant 2
+    #                 temp_angle = np.pi - abs(np.arctan((temp_point[1] - pivot[1]) / (temp_point[0] - pivot[0])))
+    #                 # print("Q2: ", temp_angle)
+    #             else:                   #Quadrant 3
+    #                  temp_angle = np.pi + abs(np.arctan((temp_point[1] - pivot[1]) / (temp_point[0] - pivot[0])))
+    #                 #  print("Q3: ", temp_angle)
+    #         return temp_angle
+
+    #     def get_min_max_angle_rad(points):
+    #         # print(angle1_rad * 360 / (2 * np.pi))
+    #         # print(angle2_rad * 360 / (2 * np.pi))
+
+    #         if (points[1][0] - points[0][0]) == 0:
+    #             if (points[1][1] - points[0][1] > 0):
+    #                 angle1_rad = np.pi/2
+    #             else:
+    #                 angle1_rad = 3 * np.pi / 2
+    #         else:
+    #             angle1_rad = get_angle(points[1],points[0])
+    #             #angle1_rad = ((np.arctan((points[1][1] - points[0][1]) / (points[1][0] - points[0][0])) + 2 * np.pi)) % (2 * np.pi)
+    #         if (points[2][0] - points[0][0]) == 0:
+    #             if (points[2][1] - points[0][1] > 0):
+    #                 angle2_rad = np.pi/2
+    #             else:
+    #                 angle2_rad = 3 * np.pi / 2                
+    #         else:
+    #             angle2_rad = get_angle(points[2],points[0])
+    #             #angle2_rad = ((np.arctan((points[2][1] - points[0][1]) / (points[2][0] - points[0][0])) + 2 * np.pi)) % (2 * np.pi)
+
+    #         # print(get_angle(points[1],points[0]))
+    #         # print(get_angle(points[2],points[0]))
+
+    #         diff_angle_rad = angle1_rad - angle2_rad
+    #         if diff_angle_rad < 0:
+    #             if abs(diff_angle_rad) < np.pi:
+    #                 min_angle_rad = angle1_rad
+    #                 max_angle_rad = angle2_rad
+    #             else:
+    #                 min_angle_rad = angle2_rad
+    #                 max_angle_rad = angle1_rad
+    #         else:
+    #             if abs(diff_angle_rad) < np.pi:
+    #                 min_angle_rad = angle2_rad
+    #                 max_angle_rad = angle1_rad
+    #             else:
+    #                 min_angle_rad = angle1_rad
+    #                 max_angle_rad = angle2_rad
+
+    #         # print(min_angle_rad, max_angle_rad)
+    #         return [min_angle_rad, max_angle_rad, points[0]]
+
+    #     angle1_min_max_rad = get_min_max_angle_rad(pixel_list)
+    #     angle2_min_max_rad = get_min_max_angle_rad([pixel_list[1],pixel_list[2],pixel_list[0]])
+
+    #     list_points = []
+
+    #     num_x_pixels = (boundaries_mm[0][1] - starting_point[0]) / self.pixel_pitch_mm
+    #     num_y_pixels = (boundaries_mm[1][1] - starting_point[1]) / self.pixel_pitch_mm
+
+    #     for x in np.arange(num_x_pixels):
+    #         for y in np.arange(num_y_pixels):
+    #             new_point = [starting_point[0] + x * self.pixel_pitch_mm, starting_point[1] + y * self.pixel_pitch_mm]
+    #             list_points.append(new_point)
+
+    #     # print("LIST POINT: ", list_points)
+                
+    #     def check_point_in_mesh(point):
+    #         # angle = round(np.arctan((point[0] - pixel_list[0][0]) / (point[1] - pixel_list[0][1])) + 2 * np.pi, 5)
+    #         # print("Flag 123 ",angle)
+    #         # print("Flag 124 ", angle1_min_max_rad[0])
+    #         # print("Flag 125 ", angle1_min_max_rad[1])
+
+    #         def check_angle(angle_min_max):
+    #             reference_point = angle_min_max[2]
+    #             angle = round(get_angle(point, reference_point), 5) 
+    #             # print("Min Max", angle_min_max)
+    #             # print("Angle: ", angle)
+    #             # print("Point: ", point)
+    #             if point[0] == reference_point[0] and point[1] == reference_point[1]:
+    #                 return True
+    #             if angle_min_max[0] > angle_min_max[1]:
+    #                 # print(1)
+    #                 if angle >= round(angle_min_max[0], 5) and angle <= np.pi * 2:
+    #                     # print(1.1)
+    #                     return True
+    #                 elif angle <= round(angle_min_max[1], 5) and angle >= 0:
+    #                     # print(1.2)
+    #                     return True
+    #                 else:
+    #                     # print(1.3)
+    #                     return False
+    #             else:
+    #                 # print(2)
+    #                 if angle >= round(angle_min_max[0], 5) and angle <= round(angle_min_max[1], 5):
+    #                     # print(2.1)
+    #                     return True
+    #                 else:
+    #                     # print(2.2)
+    #                     return False
+
+    #         if check_angle(angle1_min_max_rad) and check_angle(angle2_min_max_rad):
+    #             return True
+    #         else:
+    #             return False
+    #     #print(mesh)
+    #   #  print(check_point_in_mesh([0.5 ,0.5 ,1000]))
+
+    #     def get_z(point):
+    #         a,b,c = mesh[9],mesh[10],mesh[11]
+    #         #print(mesh,a,b,c) 
+    #         x,y,z = point[0], point[1], 0
+    #         x1, y1, z1 = mesh[0], mesh[1],  mesh[2]
+    #         if x1 == x and y1 == y:
+    #             z2 = z1
+    #         else:
+    #             z2 = ((a * (x1 - 2 * x) + b * ( y1 - 2 * y)) / c) + z1 - z
+    #         return z2
+
+    #     #print(get_z([0.5,0.5,0.5]))
+    #     points_on_mesh = []
+    #     # print("LP: ", list_points)
+    #     for i in list_points:
+    #         # print ("i: ", i)
+    #         if check_point_in_mesh(i):
+    #             point = [i[0],i[1],get_z(i)]
+    #             points_on_mesh.append(point)
+    #     #        print(point)
+    #         #print(get_z(i))
+    #     #print(len(list_points))
+    #     #print("POINTS ON MESH: ", points_on_mesh)
+    #     return points_on_mesh
         
     def make_3D_image_blueprint(self): 
         print("Start Get Significant Meshes")
@@ -263,14 +327,14 @@ class print_data():
         print("Start Get Significant Points")
         print(len(self.png_blueprint), len(self.png_blueprint[0]))
         for mesh in self.significant_meshes:
-            print("NUMBER")
-            temp = self.map_mesh_xyz(mesh)
+            print("NUMBER")x
+            temp = self.project_mesh_xyz(mesh)
             # print("TEMP: ", temp)
             for points in temp:
                 x_pos = int(round(points[0] / self.pixel_pitch_mm, 5))
                 y_pos = int(round(points[1] / self.pixel_pitch_mm, 5))
             # print("POS: ", x_pos, y_pos)
-                #print("XYPOS ", x_pos, y_pos)
+                print("XYPOS ", x_pos, y_pos)
                 if self.png_blueprint[x_pos][y_pos] is None:
                     self.png_blueprint[x_pos][y_pos] = [points[2]]
                 else:
