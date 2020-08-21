@@ -13,7 +13,7 @@ class print_data():
         self.num_layers = None
         self.layer_height_mm = 0.01
         self.pixel_pitch_mm = 0.0076
-        self.resolution_px2 = [10,10]
+        self.resolution_px2 = [2560,1600]
 
         self.volume_mm3 = None
         
@@ -28,22 +28,24 @@ class print_data():
 
     def read_values(self):
         self.volume_mm3 = self.print_file_mesh.get_mass_properties()[0]
-        self.height_print_mm = self.print_file_mesh.max_[2]
-        print("X: ", self.print_file_mesh.max_[0])
-        print("Y: ", self.print_file_mesh.max_[1])
+        self.height_print_mm = round(self.print_file_mesh.max_[2], 5)
+        # print("Number X Pixels: ", round(round(self.print_file_mesh.max_[0], 5) / self.pixel_pitch_mm, 5))
+        # print("Number Y Pixels: ", round(round(self.print_file_mesh.max_[1], 5) / self.pixel_pitch_mm, 5))
         self.num_layers = int(self.height_print_mm / self.layer_height_mm)
+        # print("Height Print:", self.height_print_mm)
+        # print("Num Layers:", self.num_layers)
         pass
 
     def get_significant_meshes(self):
         for i in range(len(self.print_file_mesh.normals)):
             if self.print_file_mesh.normals[i][2] != 0:
                 temp_data = self.print_file_mesh.points[i].tolist()
+                # print("Significant mesh:  ", round(temp_data[0],5), round(temp_data[1],5), round(temp_data[2],5), round(temp_data[3],5), round(temp_data[4],5), round(temp_data[5],5), round(temp_data[6],5), round(temp_data[7],5), round(temp_data[8],5))
                 temp_data.append(self.print_file_mesh.normals[i][0])
                 temp_data.append(self.print_file_mesh.normals[i][1])
                 temp_data.append(self.print_file_mesh.normals[i][2])
-                #print("Temp Data: ", temp_data)
                 self.significant_meshes.append(temp_data)
-        #print("SM: ", self.significant_meshes)
+        # print("SM: ", self.significant_meshes)
         return self.significant_meshes
 
     def get_mesh_vectors(self, mesh):
@@ -72,34 +74,43 @@ class print_data():
 
     def get_border_point(self, vector, point, mesh):
         list_border_points = []
+        # print(vector)
+        # print("Mesh: ", round(mesh[0],5), round(mesh[1],5), round(mesh[2],5), round(mesh[3],5), round(mesh[4],5), round(mesh[5],5), round(mesh[6],5), round(mesh[7],5), round(mesh[8],5))
+
 
         starting_point_x = 0
-        if(round(point[0] % self.pixel_pitch_mm == 0),10):
+        if(round(point[0] % self.pixel_pitch_mm, 5) == self.pixel_pitch_mm / 2):
             starting_point_x = point[0]
+            #print("Starting Point0: ", starting_point_x, point[0])
         else:
-            starting_point_x = int(point[0] / self.pixel_pitch_mm + 1) * self.pixel_pitch_mm
+            starting_point_x = int((point[0] + self.pixel_pitch_mm / 2) / self.pixel_pitch_mm) * self.pixel_pitch_mm + self.pixel_pitch_mm / 2
+            #print("Starting Point1: ", starting_point_x, point[0])
 
         num_points_x = 0
 
-        if (vector[0] > (self.pixel_pitch_mm - (point[0] % self.pixel_pitch_mm))):
-            num_points_x = 1
-            print(vector[0], point[0])
-        if point[0] % self.pixel_pitch_mm == 0:
-            num_points_x = 1 + int(vector[0] / self.pixel_pitch_mm)
-            print("NUMX1: ", num_points_x)
+        if point[0] % self.pixel_pitch_mm == self.pixel_pitch_mm / 2:
+            num_points_x = 1 + int(round(vector[0] / self.pixel_pitch_mm, 3))
+            #print("NUMX1: ", num_points_x)
         else:
-            num_points_x = num_points_x + int((vector[0] - (self.pixel_pitch_mm - (point[0] % self.pixel_pitch_mm))) / self.pixel_pitch_mm)
-            print("NUMX2: ", num_points_x)
+            if vector[0] > starting_point_x - point[0]:
+                if vector[0] < self.pixel_pitch_mm:
+                    num_points_x = 1
+                else:
+                    num_points_x = int(round(vector[0] / self.pixel_pitch_mm,3))
+            #print("NUMX2: ", num_points_x, vector[0] / self.pixel_pitch_mm)
 
         for num_x in range(num_points_x):
-            pos_x = (num_x - 1) * self.pixel_pitch_mm + starting_point_x
+            pos_x = num_x * self.pixel_pitch_mm + starting_point_x
             pos_x_relative = starting_point_x - point[0] 
-            pos_y = vector[1] / vector[0] * (pos_x_relative + num_x * self.pixel_pitch_mm) + point[1]
-            print(num_points_x, pos_x, pos_y)
+            if vector[0] != 0:
+                pos_y = vector[1] / vector[0] * (pos_x_relative + num_x * self.pixel_pitch_mm) + point[1]
+            else:
+                pos_y = point[1]
+            # print(num_points_x, pos_x, pos_y)
             border_point = [pos_x, pos_y]
             list_border_points.append(border_point)
 
-        if(num_points_x > 0):
+        if(len(list_border_points) > 0):
             return list_border_points
         else:
             return None
@@ -113,28 +124,85 @@ class print_data():
     def project_mesh_xyz(self, mesh):
         list_vectors, p1, p2 = self.get_mesh_vectors(mesh)
         list_border_points = []
+        point1_vector0_border_points = self.get_border_point(list_vectors[0], p1, mesh)
+        
+        point1_vector1_border_points = self.get_border_point(list_vectors[1], p1, mesh)
+        point2_vector2_border_points = self.get_border_point(list_vectors[2], p2, mesh)
 
-        list_border_points.extend(self.get_border_point(list_vectors[0], p1, mesh))
-        list_border_points.extend(self.get_border_point(list_vectors[1], p1, mesh))
-        list_border_points.extend(self.get_border_point(list_vectors[2], p2, mesh))
+        if(point1_vector0_border_points is not None):
+            list_border_points.extend(point1_vector0_border_points)
+        if(point1_vector1_border_points is not None):
+            list_border_points.extend(point1_vector1_border_points)
+        if(point2_vector2_border_points is not None):
+            list_border_points.extend(point2_vector2_border_points)
+
         list_border_points.sort()
+        # print("LBP: ", list_border_points)
 
         list_points = []
 
-
+        # print(len(list_border_points))
         for i in range(0,len(list_border_points),2):
-            num_points_y = int(round((list_border_points[i+1][1] /self.pixel_pitch_mm),5)) - int(round((list_border_points[i][1] / self.pixel_pitch_mm),5))
-            # print("#Y", num_points_y)
-            for num_y in range(num_points_y):
-                x = round(list_border_points[i][0], 8)
-                y = round(num_y * self.pixel_pitch_mm + list_border_points[i][1], 8)
-                z = self.get_z([x,y], mesh)        
+            x = list_border_points[i][0]
+            min_y_point = list_border_points[i][1]
+            max_y_point = list_border_points[i+1][1]
+            starting_point_y = 0
+            if round((min_y_point % self.pixel_pitch_mm),4) == round(self.pixel_pitch_mm / 2,4):
+                # print("hahaha I found it")
+                starting_point_y = min_y_point
+            else:
+                starting_point_y = int((min_y_point + self.pixel_pitch_mm / 2) / self.pixel_pitch_mm) * self.pixel_pitch_mm + self.pixel_pitch_mm / 2
+
+            num_points_y = 0
+
+            if min_y_point % self.pixel_pitch_mm == self.pixel_pitch_mm / 2:
+                num_points_y = 1 + int(round((max_y_point - min_y_point) / self.pixel_pitch_mm, 4))
+                #print("NUMX1: ", num_points_x)
+            else:
+                if (max_y_point - min_y_point) > starting_point_y - min_y_point:
+                    if (max_y_point - min_y_point) < self.pixel_pitch_mm:
+                        num_points_y = 1
+                    else:
+                        num_points_y = int(round(1 + (max_y_point - starting_point_y) / self.pixel_pitch_mm,4))
+                        # print(round((starting_point_y) / self.pixel_pitch_mm,4))
+
+            #num_points_y = int(round((max_y_point - starting_point_y) / self.pixel_pitch_mm,5))
+            # print("#Y points: ", num_points_y)
+            for y_rel in range(num_points_y):
+                y = y_rel * self.pixel_pitch_mm + starting_point_y
+                z = self.get_z([x,y], mesh)
                 list_points.append([x,y,z])
+
+            # num_points_y = 0
+            # vector_y_length_mm = list_border_points[i][1] - list_border_points[i-1][1]
+            # first_point_vector_y = list_border_points[i-1][1]
+
+
+            # if (vector_y_length_mm > distance_between_min_max_mm):
+            #     num_points_y = 1
+            #     print("NUMY0: ", vector_y, first_point_vector_y)
+            # if round(first_point_vector_y % self.pixel_pitch_mm,5) == 0 or round(first_point_vector_y % self.pixel_pitch_mm,5) == self.pixel_pitch_mm:
+            #     num_points_y = 1 + int(vector_y / self.pixel_pitch_mm)
+            #     print("NUMY1: ", num_points_y)
+            # else:
+            #     num_points_y = num_points_y + int((vector_y - (self.pixel_pitch_mm - (vector_y % self.pixel_pitch_mm))) / self.pixel_pitch_mm)
+            #     print("NUMY2: ", num_points_y)
+            
+            # #num_points_y = int(round((list_border_points[i+1][1] /self.pixel_pitch_mm),5)) - int(round((list_border_points[i][1] / self.pixel_pitch_mm),5))
+            # print("#Y", num_points_y)
+            # for num_y in range(num_points_y):
+            #     x = round(list_border_points[i-1][0], 8)
+            #     y = round(num_y * self.pixel_pitch_mm + list_border_points[i-1][1], 8)
+            #     z = self.get_z([x,y], mesh)        
+            #     list_points.append([x,y,z])
 
         
         list_points.sort()
-#        print("LP: ", list_points)
-        return list_points 
+        # print("LP: ", list_points)
+        if len(list_points) > 0:
+            return list_points 
+        else:
+            return None
 
     def get_z(self, point, mesh):
         a,b,c = mesh[9],mesh[10],mesh[11]
@@ -158,22 +226,22 @@ class print_data():
         for mesh in self.significant_meshes:
             # print("NUMBER")
             temp = self.project_mesh_xyz(mesh)
-            #print("TEMP: ", temp)
-            for points in temp:
-                x_pos = int(round(points[0] / self.pixel_pitch_mm, 5))
-                y_pos = int(round(points[1] / self.pixel_pitch_mm, 5))
-                #print("POS: ", x_pos, y_pos)
-                #print("XYPOS ", x_pos, y_pos)
-                if self.png_blueprint[x_pos][y_pos] == None:
-                    #print("Single")
-                    self.png_blueprint[x_pos][y_pos] = points[2]
-                else:
-                    #print("Duplicate", self.png_blueprint[x_pos][y_pos])
-                    self.png_blueprint[x_pos][y_pos].append(points[2])  
-                    if len(self.png_blueprint[x_pos][y_pos]) > 2: print("Duplicate", self.png_blueprint[x_pos][y_pos])              
-
-        print(self.png_blueprint)
-
+            # print("Mesh: ", round(mesh[0],5), round(mesh[1],5), round(mesh[2],5), round(mesh[3],5), round(mesh[4],5), round(mesh[5],5), round(mesh[6],5), round(mesh[7],5), round(mesh[8],5))
+            # print("Points in Mesh: ", temp)
+            if temp is not None:
+                for points in temp:
+                    x_pos = int(round(points[0] / self.pixel_pitch_mm, 5))
+                    y_pos = int(round(points[1] / self.pixel_pitch_mm, 5))
+                    #print("POS: ", x_pos, y_pos)
+                    #print("XYPOS ", x_pos, y_pos)
+                    if self.png_blueprint[x_pos][y_pos] == None:
+                        #print("Single")
+                        self.png_blueprint[x_pos][y_pos] = points[2]
+                    else:
+                        #print("Duplicate", self.png_blueprint[x_pos][y_pos])
+                        self.png_blueprint[x_pos][y_pos].append(points[2])  
+                        #if len(self.png_blueprint[x_pos][y_pos]) > 2: print("Duplicate", self.png_blueprint[x_pos][y_pos])              
+        #print("BP: ",len(self.png_blueprint), len(self.png_blueprint[0]), len(self.png_blueprint[0][1]), self.png_blueprint)
         for x in self.png_blueprint:
             for y in x:
                 #print(self.png_blueprint.index(x), x.index(y), y)
@@ -196,8 +264,10 @@ class print_data():
                         temp_index = temp_index + 1
                 # print(self.png_blueprint.index(x), x.index(y), y)
 
+        # print(self.png_blueprint)
+
     def print_png(self):
-        png_image = [[255 for y in range(self.resolution_px2[1])] for x in range(self.resolution_px2[0])]
+        png_image = [[0 for y in range(self.resolution_px2[1])] for x in range(self.resolution_px2[0])]
 
         #print(self.png_blueprint)
 
@@ -222,7 +292,9 @@ class print_data():
                             else:
                                 pass
             # print("IMAGE: ", png_image)
-            file_name = layer
+
+            file_name = str(layer).zfill(4)
+
             self.export_png(file_name, png_image)
 
     def export_png(self, file_base_name, png_image):
@@ -270,7 +342,7 @@ class print_data():
 
 if __name__ == "__main__":
     my_print = print_data()
-    my_print.import_stl("./STL_Files/10x10_7p6um_small_cylinder.stl")
+    my_print.import_stl("./STL_Files/print_sized_block.stl")
     print("Read Values")
     my_print.read_values()
     # mesh = my_print.get_significant_meshes()
