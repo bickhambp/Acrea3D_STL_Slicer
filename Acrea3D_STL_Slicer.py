@@ -79,25 +79,32 @@ class print_data():
 
 
         starting_point_x = 0
-        if(round(point[0] % self.pixel_pitch_mm, 5) == self.pixel_pitch_mm / 2):
+        if(round(point[0] % self.pixel_pitch_mm, 4) == round(self.pixel_pitch_mm / 2 , 4)): #4
             starting_point_x = point[0]
-            #print("Starting Point0: ", starting_point_x, point[0])
+            #   print("Starting Point0: ", starting_point_x, point[0])
         else:
-            starting_point_x = int((point[0] + self.pixel_pitch_mm / 2) / self.pixel_pitch_mm) * self.pixel_pitch_mm + self.pixel_pitch_mm / 2
-            #print("Starting Point1: ", starting_point_x, point[0])
+            starting_point_x = int(round((point[0] + self.pixel_pitch_mm / 2) / self.pixel_pitch_mm,4)) * self.pixel_pitch_mm + self.pixel_pitch_mm / 2
+            # print("Starting Point1: ", starting_point_x, point[0])
 
         num_points_x = 0
 
-        if point[0] % self.pixel_pitch_mm == self.pixel_pitch_mm / 2:
-            num_points_x = 1 + int(round(vector[0] / self.pixel_pitch_mm, 3))
-            #print("NUMX1: ", num_points_x)
+        if round(vector[0],4) == 0:
+            num_points_x = 0
+        elif round(point[0] % self.pixel_pitch_mm, 4) == round(self.pixel_pitch_mm / 2,4):
+            num_points_x = 1 + int(round(vector[0] / self.pixel_pitch_mm, 4)) # 3
+            # print("NUMX1: ", num_points_x)
         else:
-            if vector[0] > starting_point_x - point[0]:
+            if vector[0] >= starting_point_x - point[0]:
+                bonus = 0
                 if vector[0] < self.pixel_pitch_mm:
+                    bonus = 1
                     num_points_x = 1
                 else:
-                    num_points_x = int(round(vector[0] / self.pixel_pitch_mm,3))
-            #print("NUMX2: ", num_points_x, vector[0] / self.pixel_pitch_mm)
+                    # print("BONUS: ", (vector[0] - (starting_point_x - point[0])) % self.pixel_pitch_mm)
+                    # if round((vector[0] - (starting_point_x - point[0])) % self.pixel_pitch_mm, 4) == 0:
+                    #     num_points_x = 1
+                    num_points_x = int(1 + round((vector[0] - (starting_point_x - point[0])) / self.pixel_pitch_mm, 4)) #3
+            # print("NUMX2: ", num_points_x, vector[0])
 
         for num_x in range(num_points_x):
             pos_x = num_x * self.pixel_pitch_mm + starting_point_x
@@ -107,7 +114,7 @@ class print_data():
             else:
                 pos_y = point[1]
             # print(num_points_x, pos_x, pos_y)
-            border_point = [pos_x, pos_y]
+            border_point = [round(pos_x,4), round(pos_y,4)]
             list_border_points.append(border_point)
 
         if(len(list_border_points) > 0):
@@ -125,7 +132,6 @@ class print_data():
         list_vectors, p1, p2 = self.get_mesh_vectors(mesh)
         list_border_points = []
         point1_vector0_border_points = self.get_border_point(list_vectors[0], p1, mesh)
-        
         point1_vector1_border_points = self.get_border_point(list_vectors[1], p1, mesh)
         point2_vector2_border_points = self.get_border_point(list_vectors[2], p2, mesh)
 
@@ -140,6 +146,112 @@ class print_data():
         # print("LBP: ", list_border_points)
 
         list_points = []
+        # print("NEW BORDER LIST")
+        for i in range(len(list_border_points)):
+            item_count_x = 1
+            # print("I #items: ", i, item_count_x)
+            if i == 0:
+                print("A: ", item_count_x)
+                if i + 1 > len(list_border_points) - 1:
+                    print("A1: ", item_count_x)
+                    continue
+                elif i + 2 > len(list_border_points) - 1:
+                    print("A2: ", item_count_x)
+                    if round(list_border_points[i+1][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                        print("A2a: ", item_count_x)
+                else:
+                    print("A3: ", item_count_x)
+                    if round(list_border_points[i+1][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                        print("A3a: ", item_count_x)
+                    if round(list_border_points[i+2][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                        print("A3b: ", item_count_x)
+                if(item_count_x > 2):
+                    print("FLAG0: ", item_count_x, i)
+            elif i == 1:
+                print("B: ", item_count_x)
+                if i + 1 > len(list_border_points) - 1:
+                    print("B1: ", item_count_x)
+                    # if list_border_points[i-2][0] == list_border_points[i][0]:
+                    #     item_count_x = item_count_x + 1
+                    #     print("B1a: ", item_count_x)
+                    if round(list_border_points[i-1][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                        print("B1b: ", item_count_x)
+                elif i + 2 > len(list_border_points) - 1:
+                    print("B2: ", item_count_x)
+                    if round(list_border_points[i-2][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                        print("B2a: ", item_count_x)
+                    if round(list_border_points[i-1][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                        print("B2b: ", item_count_x)
+                    if round(list_border_points[i+1][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                        print("B2c: ", item_count_x)
+                else:
+                    print("B3: ", item_count_x)
+                    if round(list_border_points[i-2][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                        print("B3a: ", item_count_x)
+                    if round(list_border_points[i-1][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                        print("B3b: ", item_count_x)
+                    if round(list_border_points[i+1][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                        print("B3c: ", item_count_x)
+                    if round(list_border_points[i+2][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1      
+                        print("B3d: ", item_count_x)
+                if(item_count_x > 2):
+                    print("FLAG1: ", item_count_x, i)                                  
+            elif i > 1:
+                if i + 1 > len(list_border_points) - 1:
+                    if round(list_border_points[i-2][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                    if round(list_border_points[i-1][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                elif i + 2 > len(list_border_points) - 1:
+                    if round(list_border_points[i-2][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                    if round(list_border_points[i-1][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                    if round(list_border_points[i+1][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                else:
+                    if round(list_border_points[i-2][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                    if round(list_border_points[i-1][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                    if round(list_border_points[i+1][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                    if round(list_border_points[i+2][0],4) == round(list_border_points[i][0],4):
+                        item_count_x = item_count_x + 1
+                if(item_count_x > 2):
+                    print("FLAG2: ", item_count_x, i)                        
+            # print("ITEM COUNT: ", item_count_x)
+            if item_count_x > 2:
+                print("ITEM COUNT: ", item_count_x, list_border_points[i])
+                print(len(list_border_points),list_border_points)
+                count = 0
+                for points in list_border_points:
+                    if round(points[0],3) == round(list_border_points[i][0],3) and round(points[1],3) == round(list_border_points[i][1],3):
+                        count = count + 1
+                
+                if count > 1:
+                    print(list_border_points[i])
+                    list_border_points[i] = [-1,-1]
+                    print(list_border_points[i])
+
+        for i in range(list_border_points.count([-1,-1])):
+            print("Mwhahahaha!")
+            list_border_points.remove([-1,-1])
+
+
+        if len(list_border_points) % 2 != 0:
+            print("HERE: ", len(list_border_points), list_border_points)
 
         # print(len(list_border_points))
         for i in range(0,len(list_border_points),2):
@@ -230,8 +342,8 @@ class print_data():
             # print("Points in Mesh: ", temp)
             if temp is not None:
                 for points in temp:
-                    x_pos = int(round(points[0] / self.pixel_pitch_mm, 5))
-                    y_pos = int(round(points[1] / self.pixel_pitch_mm, 5))
+                    x_pos = int(round(points[0] / self.pixel_pitch_mm, 4)) # 5
+                    y_pos = int(round(points[1] / self.pixel_pitch_mm, 4)) # 5
                     #print("POS: ", x_pos, y_pos)
                     #print("XYPOS ", x_pos, y_pos)
                     if self.png_blueprint[x_pos][y_pos] == None:
@@ -267,7 +379,7 @@ class print_data():
         # print(self.png_blueprint)
 
     def print_png(self):
-        png_image = [[0 for y in range(self.resolution_px2[1])] for x in range(self.resolution_px2[0])]
+        png_image = [[0 for x in range(self.resolution_px2[1])] for y in range(self.resolution_px2[0])]
 
         #print(self.png_blueprint)
 
@@ -342,7 +454,7 @@ class print_data():
 
 if __name__ == "__main__":
     my_print = print_data()
-    my_print.import_stl("./STL_Files/print_sized_block.stl")
+    my_print.import_stl("./STL_Files/GradientDiffusionPillars2px.stl")
     print("Read Values")
     my_print.read_values()
     # mesh = my_print.get_significant_meshes()
