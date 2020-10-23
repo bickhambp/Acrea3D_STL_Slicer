@@ -20,6 +20,9 @@ class print_data():
         self.significant_meshes = []
         self.significant_points = []
         self.png_blueprint = [[[] for y in range(self.resolution_px2[1])] for x in range(self.resolution_px2[0])]
+
+        self.pixel_order_of_magnitude = 1e-4
+        self.rounding_order_of_magnitude = 1e-8        
         pass
 
     def import_stl(self, stl):
@@ -28,7 +31,7 @@ class print_data():
 
     def read_values(self):
         self.volume_mm3 = self.print_file_mesh.get_mass_properties()[0]
-        self.height_print_mm = round(self.print_file_mesh.max_[2], 5)
+        self.height_print_mm = self.print_file_mesh.max_[2]
         # print("Number X Pixels: ", round(round(self.print_file_mesh.max_[0], 5) / self.pixel_pitch_mm, 5))
         # print("Number Y Pixels: ", round(round(self.print_file_mesh.max_[1], 5) / self.pixel_pitch_mm, 5))
         self.num_layers = int(self.height_print_mm / self.layer_height_mm)
@@ -79,19 +82,19 @@ class print_data():
 
 
         starting_point_x = 0
-        if(round(point[0] % self.pixel_pitch_mm, 4) == round(self.pixel_pitch_mm / 2 , 4)): #4
+        if(abs(point[0] % self.pixel_pitch_mm - self.pixel_pitch_mm / 2) < self.rounding_order_of_magnitude): #4
             starting_point_x = point[0]
             #   print("Starting Point0: ", starting_point_x, point[0])
         else:
-            starting_point_x = int(round((point[0] + self.pixel_pitch_mm / 2) / self.pixel_pitch_mm,4)) * self.pixel_pitch_mm + self.pixel_pitch_mm / 2
+            starting_point_x = int((point[0] + self.pixel_pitch_mm / 2) / self.pixel_pitch_mm) * self.pixel_pitch_mm + self.pixel_pitch_mm / 2
             # print("Starting Point1: ", starting_point_x, point[0])
 
         num_points_x = 0
 
-        if round(vector[0],4) == 0:
+        if abs(vector[0]) < self.rounding_order_of_magnitude:
             num_points_x = 0
-        elif round(point[0] % self.pixel_pitch_mm, 4) == round(self.pixel_pitch_mm / 2,4):
-            num_points_x = 1 + int(round(vector[0] / self.pixel_pitch_mm, 4)) # 3
+        elif abs(point[0] % self.pixel_pitch_mm - self.pixel_pitch_mm / 2) < self.rounding_order_of_magnitude:
+            num_points_x = 1 + int(vector[0] / self.pixel_pitch_mm) # 3
             # print("NUMX1: ", num_points_x)
         else:
             if vector[0] >= starting_point_x - point[0]:
@@ -103,7 +106,7 @@ class print_data():
                     # print("BONUS: ", (vector[0] - (starting_point_x - point[0])) % self.pixel_pitch_mm)
                     # if round((vector[0] - (starting_point_x - point[0])) % self.pixel_pitch_mm, 4) == 0:
                     #     num_points_x = 1
-                    num_points_x = int(1 + round((vector[0] - (starting_point_x - point[0])) / self.pixel_pitch_mm, 4)) #3
+                    num_points_x = int(1 + (vector[0] - (starting_point_x - point[0])) / self.pixel_pitch_mm) #3
             # print("NUMX2: ", num_points_x, vector[0])
 
         for num_x in range(num_points_x):
@@ -114,7 +117,7 @@ class print_data():
             else:
                 pos_y = point[1]
             # print(num_points_x, pos_x, pos_y)
-            border_point = [round(pos_x,4), round(pos_y,4)]
+            border_point = [pos_x, pos_y]
             list_border_points.append(border_point)
 
         if(len(list_border_points) > 0):
@@ -157,15 +160,15 @@ class print_data():
                     continue
                 elif i + 2 > len(list_border_points) - 1:
                     print("A2: ", item_count_x)
-                    if round(list_border_points[i+1][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i+1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1
                         print("A2a: ", item_count_x)
                 else:
                     print("A3: ", item_count_x)
-                    if round(list_border_points[i+1][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i+1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1
                         print("A3a: ", item_count_x)
-                    if round(list_border_points[i+2][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i+2][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1
                         print("A3b: ", item_count_x)
                 if(item_count_x > 2):
@@ -177,57 +180,57 @@ class print_data():
                     # if list_border_points[i-2][0] == list_border_points[i][0]:
                     #     item_count_x = item_count_x + 1
                     #     print("B1a: ", item_count_x)
-                    if round(list_border_points[i-1][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i-1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1
                         print("B1b: ", item_count_x)
                 elif i + 2 > len(list_border_points) - 1:
                     print("B2: ", item_count_x)
-                    if round(list_border_points[i-2][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i-2][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1
                         print("B2a: ", item_count_x)
-                    if round(list_border_points[i-1][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i-1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1
                         print("B2b: ", item_count_x)
-                    if round(list_border_points[i+1][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i+1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1
                         print("B2c: ", item_count_x)
                 else:
                     print("B3: ", item_count_x)
-                    if round(list_border_points[i-2][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i-2][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1
                         print("B3a: ", item_count_x)
-                    if round(list_border_points[i-1][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i-1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1
                         print("B3b: ", item_count_x)
-                    if round(list_border_points[i+1][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i+1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1
                         print("B3c: ", item_count_x)
-                    if round(list_border_points[i+2][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i+2][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1      
                         print("B3d: ", item_count_x)
                 if(item_count_x > 2):
                     print("FLAG1: ", item_count_x, i)                                  
             elif i > 1:
                 if i + 1 > len(list_border_points) - 1:
-                    if round(list_border_points[i-2][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i-2][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1
-                    if round(list_border_points[i-1][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i-1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1
                 elif i + 2 > len(list_border_points) - 1:
-                    if round(list_border_points[i-2][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i-2][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1
-                    if round(list_border_points[i-1][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i-1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1
-                    if round(list_border_points[i+1][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i+1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1
                 else:
-                    if round(list_border_points[i-2][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i-2][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1
-                    if round(list_border_points[i-1][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i-1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1
-                    if round(list_border_points[i+1][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i+1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude: 
                         item_count_x = item_count_x + 1
-                    if round(list_border_points[i+2][0],4) == round(list_border_points[i][0],4):
+                    if abs(list_border_points[i+2][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
                         item_count_x = item_count_x + 1
                 if(item_count_x > 2):
                     print("FLAG2: ", item_count_x, i)                        
@@ -237,7 +240,7 @@ class print_data():
                 print(len(list_border_points),list_border_points)
                 count = 0
                 for points in list_border_points:
-                    if round(points[0],3) == round(list_border_points[i][0],3) and round(points[1],3) == round(list_border_points[i][1],3):
+                    if abs(points[0] - list_border_points[i][0]) < self.rounding_order_of_magnitude and abs(points[1] - list_border_points[i][1]) < self.rounding_order_of_magnitude:
                         count = count + 1
                 
                 if count > 1:
@@ -259,7 +262,7 @@ class print_data():
             min_y_point = list_border_points[i][1]
             max_y_point = list_border_points[i+1][1]
             starting_point_y = 0
-            if round((min_y_point % self.pixel_pitch_mm),4) == round(self.pixel_pitch_mm / 2,4):
+            if abs(min_y_point % self.pixel_pitch_mm - self.pixel_pitch_mm / 2) < self.rounding_order_of_magnitude:
                 # print("hahaha I found it")
                 starting_point_y = min_y_point
             else:
@@ -268,14 +271,14 @@ class print_data():
             num_points_y = 0
 
             if min_y_point % self.pixel_pitch_mm == self.pixel_pitch_mm / 2:
-                num_points_y = 1 + int(round((max_y_point - min_y_point) / self.pixel_pitch_mm, 4))
+                num_points_y = 1 + int((max_y_point - min_y_point) / self.pixel_pitch_mm)
                 #print("NUMX1: ", num_points_x)
             else:
                 if (max_y_point - min_y_point) > starting_point_y - min_y_point:
                     if (max_y_point - min_y_point) < self.pixel_pitch_mm:
                         num_points_y = 1
                     else:
-                        num_points_y = int(round(1 + (max_y_point - starting_point_y) / self.pixel_pitch_mm,4))
+                        num_points_y = int(1 + (max_y_point - starting_point_y) / self.pixel_pitch_mm)
                         # print(round((starting_point_y) / self.pixel_pitch_mm,4))
 
             #num_points_y = int(round((max_y_point - starting_point_y) / self.pixel_pitch_mm,5))
@@ -454,7 +457,7 @@ class print_data():
 
 if __name__ == "__main__":
     my_print = print_data()
-    my_print.import_stl("./STL_Files/GradientDiffusionPillars2px.stl")
+    my_print.import_stl("./STL_Files/Sphere.stl")
     print("Read Values")
     my_print.read_values()
     # mesh = my_print.get_significant_meshes()
