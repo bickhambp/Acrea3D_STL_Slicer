@@ -19,7 +19,7 @@ class print_data():
         
         self.significant_meshes = []
         self.significant_points = []
-        self.png_blueprint = [[[] for y in range(self.resolution_px2[1])] for x in range(self.resolution_px2[0])]
+        self.png_blueprint = [[[] for y in range(self.resolution_px2[0])] for x in range(self.resolution_px2[1])]
 
         self.pixel_order_of_magnitude = 1e-4
         self.rounding_order_of_magnitude = 1e-8        
@@ -287,30 +287,6 @@ class print_data():
                 y = y_rel * self.pixel_pitch_mm + starting_point_y
                 z = self.get_z([x,y], mesh)
                 list_points.append([x,y,z])
-
-            # num_points_y = 0
-            # vector_y_length_mm = list_border_points[i][1] - list_border_points[i-1][1]
-            # first_point_vector_y = list_border_points[i-1][1]
-
-
-            # if (vector_y_length_mm > distance_between_min_max_mm):
-            #     num_points_y = 1
-            #     print("NUMY0: ", vector_y, first_point_vector_y)
-            # if round(first_point_vector_y % self.pixel_pitch_mm,5) == 0 or round(first_point_vector_y % self.pixel_pitch_mm,5) == self.pixel_pitch_mm:
-            #     num_points_y = 1 + int(vector_y / self.pixel_pitch_mm)
-            #     print("NUMY1: ", num_points_y)
-            # else:
-            #     num_points_y = num_points_y + int((vector_y - (self.pixel_pitch_mm - (vector_y % self.pixel_pitch_mm))) / self.pixel_pitch_mm)
-            #     print("NUMY2: ", num_points_y)
-            
-            # #num_points_y = int(round((list_border_points[i+1][1] /self.pixel_pitch_mm),5)) - int(round((list_border_points[i][1] / self.pixel_pitch_mm),5))
-            # print("#Y", num_points_y)
-            # for num_y in range(num_points_y):
-            #     x = round(list_border_points[i-1][0], 8)
-            #     y = round(num_y * self.pixel_pitch_mm + list_border_points[i-1][1], 8)
-            #     z = self.get_z([x,y], mesh)        
-            #     list_points.append([x,y,z])
-
         
         list_points.sort()
         # print("LP: ", list_points)
@@ -382,13 +358,13 @@ class print_data():
         # print(self.png_blueprint)
 
     def print_png(self):
-        png_image = [[0 for x in range(self.resolution_px2[1])] for y in range(self.resolution_px2[0])]
+        png_image = [[0 for x in range(self.resolution_px2[0])] for y in range(self.resolution_px2[1])]
 
         #print(self.png_blueprint)
 
         for layer in range(self.num_layers):
-            for x in range(self.resolution_px2[0]):
-                for y in range(self.resolution_px2[1]):
+            for x in range(len(png_image)):
+                for y in range(len(png_image[x])):
                     for z in self.png_blueprint[x][y]:
                         if layer == 0:
                             # print("LAYER: ", layer)
@@ -419,41 +395,12 @@ class print_data():
         file_name = "{}/slices/{}.png".format(path, file_base_name)
         png_file = open(file_name, 'wb')
         # png.from_array(png_image, mode="L", info= {height = 2, width = 2}).save("/tmp/foo.png")
-        write_png = png.Writer(self.resolution_px2[1], self.resolution_px2[0], greyscale = True)
+        write_png = png.Writer(self.resolution_px2[0], self.resolution_px2[1], greyscale = True)
         write_png.write(png_file, png_image)
         png_file.close()
 
 
     
-
-
-        #for point in self.significant_points:
-         #   print(point)
-            # if point[0] is not None:
-            #     point[0] = int((point[0] - self.pixel_pitch_mm / 2) / self.pixel_pitch_mm)
-            #     point[1] = int((point[1] - self.pixel_pitch_mm / 2) / self.pixel_pitch_mm)
-            #     print(point)
-            
-        
-
-    
-    
-
-
-
-# resolution_px = [2560, 1600]
-# #print_height_mm = #Get from STL
-# slice_thickness_mm = 0.01
-
-# image_array = np.empty(shape = (2560,1600))
-
-# temp_array = [[None] * 2560] * 1600
-
-# temp_array[100][0] = [5]
-# temp_array[100][0].append(32)
-# print(temp_array[100][0])
-
-
 
 if __name__ == "__main__":
     my_print = print_data()
@@ -464,29 +411,8 @@ if __name__ == "__main__":
     # my_print.map_mesh_xyz(mesh[0])
     print("Make Blueprint")
     my_print.make_3D_image_blueprint()
-    print("Print Images")    
+    print("Print Images")
     my_print.print_png()
-
-    # import png
-
-    # picture = [[0] * 2560] * 1600
-    # # print(picture)
-    # my_png = open("my_png.png", 'wb')
-    # write_png = png.Writer(2560,1600, greyscale = True)
-    # write_png.write(my_png, picture)
-    # my_png.close()
     pass
 
 
-
-# Using an existing closed stl file:
-# your_mesh = mesh.Mesh.from_file('Cube.stl')
-
-# print(your_mesh.points)
-
-# volume, cog, inertia = your_mesh.get_mass_properties()
-# print("Volume                                  = {0}".format(volume))
-# print("Position of the center of gravity (COG) = {0}".format(cog))
-# print("Inertia matrix at expressed at the COG  = {0}".format(inertia[0,:]))
-# print("                                          {0}".format(inertia[1,:]))
-# print("                                          {0}".format(inertia[2,:]))
