@@ -13,13 +13,13 @@ class print_data():
         self.num_layers = None
         self.layer_height_mm = 0.01
         self.pixel_pitch_mm = 0.0076
-        self.resolution_px2 = [2560,1600]
+        self.resolution = [50,25]
 
         self.volume_mm3 = None
         
         self.significant_meshes = []
         self.significant_points = []
-        self.png_blueprint = [[[] for y in range(self.resolution_px2[0])] for x in range(self.resolution_px2[1])]
+        self.png_blueprint = [[[] for y in range(self.resolution[1])] for x in range(self.resolution[0])]
 
         self.pixel_order_of_magnitude = 1e-4
         self.rounding_order_of_magnitude = 1e-8        
@@ -32,387 +32,186 @@ class print_data():
     def read_values(self):
         self.volume_mm3 = self.print_file_mesh.get_mass_properties()[0]
         self.height_print_mm = self.print_file_mesh.max_[2]
-        # print("Number X Pixels: ", round(round(self.print_file_mesh.max_[0], 5) / self.pixel_pitch_mm, 5))
-        # print("Number Y Pixels: ", round(round(self.print_file_mesh.max_[1], 5) / self.pixel_pitch_mm, 5))
         self.num_layers = int(self.height_print_mm / self.layer_height_mm)
-        # print("Height Print:", self.height_print_mm)
-        # print("Num Layers:", self.num_layers)
         pass
 
     def get_significant_meshes(self):
         for i in range(len(self.print_file_mesh.normals)):
             if self.print_file_mesh.normals[i][2] != 0:
                 temp_data = self.print_file_mesh.points[i].tolist()
-                # print("Significant mesh:  ", round(temp_data[0],5), round(temp_data[1],5), round(temp_data[2],5), round(temp_data[3],5), round(temp_data[4],5), round(temp_data[5],5), round(temp_data[6],5), round(temp_data[7],5), round(temp_data[8],5))
                 temp_data.append(self.print_file_mesh.normals[i][0])
                 temp_data.append(self.print_file_mesh.normals[i][1])
                 temp_data.append(self.print_file_mesh.normals[i][2])
                 self.significant_meshes.append(temp_data)
-        # print("SM: ", self.significant_meshes)
         return self.significant_meshes
 
-    def get_mesh_vectors(self, mesh):
-        points = [[mesh[0],mesh[1],mesh[2]],[mesh[3],mesh[4],mesh[5]],[mesh[6],mesh[7],mesh[8]]]
-        points.sort()
-        p1 = points[0]
-        p2 = points[1]
-        p3 = points[2]
+    def round_point_to_nearest_pixel(self, point, round_up):
+        if round_up:
+            temp_point = int((point + self.pixel_pitch_mm ) / self.pixel_pitch_mm) * self.pixel_pitch_mm - self.pixel_pitch_mm / 2
+        else:
+            temp_point = int(point / self.pixel_pitch_mm) * self.pixel_pitch_mm - self.pixel_pitch_mm / 2
 
-        def get_vector(point1, point2):
-            vector = []
-            for i in range(3):
-                vector.append(point2[i] - point1[i])
-            return vector
-        #va = p1
-        va = []
-        va.append(get_vector(p1,p2))
-        va.append(get_vector(p1,p3))
-        va.append(get_vector(p2, p3))
-        #vb = p1
-        #vb.append(get_vector(p2,p1))
-        #vb.append(get_vector(p2,p3))
+        return temp_point
+
+    def get_vector_proportions(self, v1,v2,point):
+        v2_factor = (point[0] * v1[1] - v1[0] * point[1])/(v2[0] * v1[1]-v1[0] * v2[1])
+        v1_factor = (point[0] - v2[0] * v2_factor) / v1[0]
+
+        return v1_factor, v2_factor
+
+    def multiply_vector_by_constant(self, vector, constant):
+        new_vector = []
+        for value in vector:
+            new_val = value * constant
+            new_vector.append(new_val)  
+        return new_vector
+
+    def add_vectors(self, v1,v2):
+        v3 = []
+        for index in range(len(v1)):
+            new_val = v1[index] + v2[index]
+            v3.append(new_val)
+        return v3
+    
+    def subtract_vectors(self, v1, v2):
+        v3 = []
+        for index in range(len(v1)):
+            new_val = v1[index] - v2[index]
+            v3.append(new_val)
+        return v3
+
+    def check_vector_in_vectors(self, v1, v2, v3):
+        v1_factor,v2_factor = get_vector_proportions(v1,v2,v3)
+        if v1_factor >= 0 and v2_factor >= 0:
+            return True
+        return False
+
+    def get_z(self, point,mesh):
+        origin = [mesh[0], mesh[1], mesh[2]]
+        v1 = [mesh[3] - origin[0], mesh[4] - origin[1], mesh[5] - origin[2]]
+        v2 = [mesh[6] - origin[0], mesh[7] - origin[1], mesh[8] - origin[2]]
+        p1 = [point[0] - origin[0], point[1] - origin[1]]
+
+        v1_per, v2_per = self.get_vector_proportions(v1,v2,p1)
+        v1_part = self.multiply_vector_by_constant(v1, v1_per)
+        v2_part = self.multiply_vector_by_constant(v2, v2_per)
+        v3 = self.add_vectors(v1_part, v2_part)
+
+        return v3[2] + mesh[2]
+    
+    def check_point_in_mesh(self, point, mesh):
+        origin = [mesh[0], mesh[1]]
+        v1 = [mesh[3] - origin[0], mesh[4] - origin[1]]
+        v2 = [mesh[6] - origin[0], mesh[7] - origin[1]]
+        v3 = [point[0] - origin[0], point[1] - origin[1]]
+        v1_per, v2_per = self.get_vector_proportions(v1,v2,v3)
+        if v1_per < 0 or v2_per < 0:
+            return False
+        origin = [mesh[3], mesh[4]]
+        v1 = [mesh[0] - origin[0], mesh[1] - origin[1]]
+        v2 = [mesh[6] - origin[0], mesh[7] - origin[1]]
+        v3 = [point[0] - origin[0], point[1] - origin[1]]
+        v1_per, v2_per = self.get_vector_proportions(v1,v2,v3)
+        if v1_per < 0 or v2_per < 0:
+            return False
+        return True        
         
-        #return va, vb
-        return va, p1, p2
 
-    def get_border_point(self, vector, point, mesh):
-        list_border_points = []
-        # print(vector)
-        # print("Mesh: ", round(mesh[0],5), round(mesh[1],5), round(mesh[2],5), round(mesh[3],5), round(mesh[4],5), round(mesh[5],5), round(mesh[6],5), round(mesh[7],5), round(mesh[8],5))
+    def get_points_in_mesh(self, mesh):
+        x_values = [mesh[0], mesh[3], mesh[6]] 
+        y_values = [mesh[1], mesh[4], mesh[7]] 
+        x_min = self.round_point_to_nearest_pixel(min(x_values), True) 
+        x_max = self.round_point_to_nearest_pixel(max(x_values), True) 
+        y_min = self.round_point_to_nearest_pixel(min(y_values), True) 
+        y_max = self.round_point_to_nearest_pixel(max(y_values), True) 
 
+        list_points = [] 
+        x_range = int((x_max - x_min) / self.pixel_pitch_mm) 
+        y_range = int((y_max - y_min) / self.pixel_pitch_mm) 
 
-        starting_point_x = 0
-        if(abs(point[0] % self.pixel_pitch_mm - self.pixel_pitch_mm / 2) < self.rounding_order_of_magnitude): #4
-            starting_point_x = point[0]
-            #   print("Starting Point0: ", starting_point_x, point[0])
-        else:
-            starting_point_x = int((point[0] + self.pixel_pitch_mm / 2) / self.pixel_pitch_mm) * self.pixel_pitch_mm + self.pixel_pitch_mm / 2
-            # print("Starting Point1: ", starting_point_x, point[0])
+        for pixel_x in range(x_range):
+            for pixel_y in range(y_range):
 
-        num_points_x = 0
+                x = pixel_x * self.pixel_pitch_mm + x_min
+                y = pixel_y * self.pixel_pitch_mm + y_min
+                if self.check_point_in_mesh([x,y], mesh):
+                    z = self.get_z([x, y], mesh)
+                    list_points.append([x, y, z])
 
-        if abs(vector[0]) < self.rounding_order_of_magnitude:
-            num_points_x = 0
-        elif abs(point[0] % self.pixel_pitch_mm - self.pixel_pitch_mm / 2) < self.rounding_order_of_magnitude:
-            num_points_x = 1 + int(vector[0] / self.pixel_pitch_mm) # 3
-            # print("NUMX1: ", num_points_x)
-        else:
-            if vector[0] >= starting_point_x - point[0]:
-                bonus = 0
-                if vector[0] < self.pixel_pitch_mm:
-                    bonus = 1
-                    num_points_x = 1
-                else:
-                    # print("BONUS: ", (vector[0] - (starting_point_x - point[0])) % self.pixel_pitch_mm)
-                    # if round((vector[0] - (starting_point_x - point[0])) % self.pixel_pitch_mm, 4) == 0:
-                    #     num_points_x = 1
-                    num_points_x = int(1 + (vector[0] - (starting_point_x - point[0])) / self.pixel_pitch_mm) #3
-            # print("NUMX2: ", num_points_x, vector[0])
+        print("MESH: ", mesh) 
+        print("X Range: " , x_min, x_max, "Y Range: ", y_min, y_max)
+        print("List Points: ", list_points)
+        return list_points
 
-        for num_x in range(num_points_x):
-            pos_x = num_x * self.pixel_pitch_mm + starting_point_x
-            pos_x_relative = starting_point_x - point[0] 
-            if vector[0] != 0:
-                pos_y = vector[1] / vector[0] * (pos_x_relative + num_x * self.pixel_pitch_mm) + point[1]
-            else:
-                pos_y = point[1]
-            # print(num_points_x, pos_x, pos_y)
-            border_point = [pos_x, pos_y]
-            list_border_points.append(border_point)
-
-        if(len(list_border_points) > 0):
-            return list_border_points
-        else:
-            return None
-
-    def get_points_on_mesh(self, list_points):
-        for i in range(0,len(list_points),2):
-            self.get_z(point, mesh)
-
-            
-
-    def project_mesh_xyz(self, mesh):
-        list_vectors, p1, p2 = self.get_mesh_vectors(mesh)
-        list_border_points = []
-        point1_vector0_border_points = self.get_border_point(list_vectors[0], p1, mesh)
-        point1_vector1_border_points = self.get_border_point(list_vectors[1], p1, mesh)
-        point2_vector2_border_points = self.get_border_point(list_vectors[2], p2, mesh)
-
-        if(point1_vector0_border_points is not None):
-            list_border_points.extend(point1_vector0_border_points)
-        if(point1_vector1_border_points is not None):
-            list_border_points.extend(point1_vector1_border_points)
-        if(point2_vector2_border_points is not None):
-            list_border_points.extend(point2_vector2_border_points)
-
-        list_border_points.sort()
-        # print("LBP: ", list_border_points)
-
-        list_points = []
-        # print("NEW BORDER LIST")
-        for i in range(len(list_border_points)):
-            item_count_x = 1
-            # print("I #items: ", i, item_count_x)
-            if i == 0:
-                print("A: ", item_count_x)
-                if i + 1 > len(list_border_points) - 1:
-                    print("A1: ", item_count_x)
-                    continue
-                elif i + 2 > len(list_border_points) - 1:
-                    print("A2: ", item_count_x)
-                    if abs(list_border_points[i+1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1
-                        print("A2a: ", item_count_x)
-                else:
-                    print("A3: ", item_count_x)
-                    if abs(list_border_points[i+1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1
-                        print("A3a: ", item_count_x)
-                    if abs(list_border_points[i+2][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1
-                        print("A3b: ", item_count_x)
-                if(item_count_x > 2):
-                    print("FLAG0: ", item_count_x, i)
-            elif i == 1:
-                print("B: ", item_count_x)
-                if i + 1 > len(list_border_points) - 1:
-                    print("B1: ", item_count_x)
-                    # if list_border_points[i-2][0] == list_border_points[i][0]:
-                    #     item_count_x = item_count_x + 1
-                    #     print("B1a: ", item_count_x)
-                    if abs(list_border_points[i-1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1
-                        print("B1b: ", item_count_x)
-                elif i + 2 > len(list_border_points) - 1:
-                    print("B2: ", item_count_x)
-                    if abs(list_border_points[i-2][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1
-                        print("B2a: ", item_count_x)
-                    if abs(list_border_points[i-1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1
-                        print("B2b: ", item_count_x)
-                    if abs(list_border_points[i+1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1
-                        print("B2c: ", item_count_x)
-                else:
-                    print("B3: ", item_count_x)
-                    if abs(list_border_points[i-2][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1
-                        print("B3a: ", item_count_x)
-                    if abs(list_border_points[i-1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1
-                        print("B3b: ", item_count_x)
-                    if abs(list_border_points[i+1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1
-                        print("B3c: ", item_count_x)
-                    if abs(list_border_points[i+2][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1      
-                        print("B3d: ", item_count_x)
-                if(item_count_x > 2):
-                    print("FLAG1: ", item_count_x, i)                                  
-            elif i > 1:
-                if i + 1 > len(list_border_points) - 1:
-                    if abs(list_border_points[i-2][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1
-                    if abs(list_border_points[i-1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1
-                elif i + 2 > len(list_border_points) - 1:
-                    if abs(list_border_points[i-2][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1
-                    if abs(list_border_points[i-1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1
-                    if abs(list_border_points[i+1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1
-                else:
-                    if abs(list_border_points[i-2][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1
-                    if abs(list_border_points[i-1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1
-                    if abs(list_border_points[i+1][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude: 
-                        item_count_x = item_count_x + 1
-                    if abs(list_border_points[i+2][0] - list_border_points[i][0]) < self.rounding_order_of_magnitude:
-                        item_count_x = item_count_x + 1
-                if(item_count_x > 2):
-                    print("FLAG2: ", item_count_x, i)                        
-            # print("ITEM COUNT: ", item_count_x)
-            if item_count_x > 2:
-                print("ITEM COUNT: ", item_count_x, list_border_points[i])
-                print(len(list_border_points),list_border_points)
-                count = 0
-                for points in list_border_points:
-                    if abs(points[0] - list_border_points[i][0]) < self.rounding_order_of_magnitude and abs(points[1] - list_border_points[i][1]) < self.rounding_order_of_magnitude:
-                        count = count + 1
-                
-                if count > 1:
-                    print(list_border_points[i])
-                    list_border_points[i] = [-1,-1]
-                    print(list_border_points[i])
-
-        for i in range(list_border_points.count([-1,-1])):
-            print("Mwhahahaha!")
-            list_border_points.remove([-1,-1])
-
-
-        if len(list_border_points) % 2 != 0:
-            print("HERE: ", len(list_border_points), list_border_points)
-
-        # print(len(list_border_points))
-        for i in range(0,len(list_border_points),2):
-            x = list_border_points[i][0]
-            min_y_point = list_border_points[i][1]
-            max_y_point = list_border_points[i+1][1]
-            starting_point_y = 0
-            if abs(min_y_point % self.pixel_pitch_mm - self.pixel_pitch_mm / 2) < self.rounding_order_of_magnitude:
-                # print("hahaha I found it")
-                starting_point_y = min_y_point
-            else:
-                starting_point_y = int((min_y_point + self.pixel_pitch_mm / 2) / self.pixel_pitch_mm) * self.pixel_pitch_mm + self.pixel_pitch_mm / 2
-
-            num_points_y = 0
-
-            if min_y_point % self.pixel_pitch_mm == self.pixel_pitch_mm / 2:
-                num_points_y = 1 + int((max_y_point - min_y_point) / self.pixel_pitch_mm)
-                #print("NUMX1: ", num_points_x)
-            else:
-                if (max_y_point - min_y_point) > starting_point_y - min_y_point:
-                    if (max_y_point - min_y_point) < self.pixel_pitch_mm:
-                        num_points_y = 1
-                    else:
-                        num_points_y = int(1 + (max_y_point - starting_point_y) / self.pixel_pitch_mm)
-                        # print(round((starting_point_y) / self.pixel_pitch_mm,4))
-
-            #num_points_y = int(round((max_y_point - starting_point_y) / self.pixel_pitch_mm,5))
-            # print("#Y points: ", num_points_y)
-            for y_rel in range(num_points_y):
-                y = y_rel * self.pixel_pitch_mm + starting_point_y
-                z = self.get_z([x,y], mesh)
-                list_points.append([x,y,z])
-        
-        list_points.sort()
-        # print("LP: ", list_points)
-        if len(list_points) > 0:
-            return list_points 
-        else:
-            return None
-
-    def get_z(self, point, mesh):
-        a,b,c = mesh[9],mesh[10],mesh[11]
-        #print(mesh,a,b,c) 
-        x,y,z = point[0], point[1], 0
-        x1, y1, z1 = mesh[0], mesh[1],  mesh[2]
-        if x1 == x and y1 == y:
-            z2 = z1
-        else:
-            z2 = ((a * (x1 - 2 * x) + b * ( y1 - 2 * y)) / c) + z1 - z
-        return z2            
-            
-
-
-
-        
-    def make_3D_image_blueprint(self): 
-        # print("Start Get Significant Meshes")
-        self.get_significant_meshes()
-        
+    def make_blueprint(self):
         for mesh in self.significant_meshes:
-            # print("NUMBER")
-            temp = self.project_mesh_xyz(mesh)
-            # print("Mesh: ", round(mesh[0],5), round(mesh[1],5), round(mesh[2],5), round(mesh[3],5), round(mesh[4],5), round(mesh[5],5), round(mesh[6],5), round(mesh[7],5), round(mesh[8],5))
-            # print("Points in Mesh: ", temp)
-            if temp is not None:
-                for points in temp:
-                    x_pos = int(round(points[0] / self.pixel_pitch_mm, 4)) # 5
-                    y_pos = int(round(points[1] / self.pixel_pitch_mm, 4)) # 5
-                    #print("POS: ", x_pos, y_pos)
-                    #print("XYPOS ", x_pos, y_pos)
-                    if self.png_blueprint[x_pos][y_pos] == None:
-                        #print("Single")
-                        self.png_blueprint[x_pos][y_pos] = points[2]
-                    else:
-                        #print("Duplicate", self.png_blueprint[x_pos][y_pos])
-                        self.png_blueprint[x_pos][y_pos].append(points[2])  
-                        #if len(self.png_blueprint[x_pos][y_pos]) > 2: print("Duplicate", self.png_blueprint[x_pos][y_pos])              
-        #print("BP: ",len(self.png_blueprint), len(self.png_blueprint[0]), len(self.png_blueprint[0][1]), self.png_blueprint)
-        for x in self.png_blueprint:
-            for y in x:
-                #print(self.png_blueprint.index(x), x.index(y), y)
-                try:
-                    y.sort()
-                except:
-                    continue
-                # print(self.png_blueprint.index(x), x.index(y), y)
-                duplicates = True
-                temp_index = 0
-                while(duplicates):
-                    # print("TEMP INDEX: ", temp_index)
-                    # print("LENGTH: ", len(y))
-                    if(temp_index >= len(y)):
-                        break
-                    if(y.count(y[temp_index]) > 1):
-                        # print("VALUE: ", y[temp_index])
-                        y.pop(temp_index)
-                    else:
-                        temp_index = temp_index + 1
-                # print(self.png_blueprint.index(x), x.index(y), y)
+            self.significant_points.extend(self.get_points_in_mesh(mesh))
+            
+        # print(self.significant_points)
+        self.significant_points.sort()
+        a = 0
+        for points in self.significant_points:
+            x_pos = int(round((points[0] - self.pixel_pitch_mm / 2) / self.pixel_pitch_mm,4))
+            y_pos = int(round((points[1] - self.pixel_pitch_mm / 2) / self.pixel_pitch_mm,4))
+            z_pos = points[2]
+            # if a < 10:
+            # print(points, x_pos, y_pos,z_pos)
+            # a += 1
+            # if round(x_pos - self.pixel_pitch_mm / 2, 4) < 10:
+            #     print(x_pos, y_pos)
+            self.png_blueprint[x_pos][y_pos].append(z_pos)
+        for x in range(len(self.png_blueprint)):
+            for y in range(len(self.png_blueprint[x])):
+                for z_index in range(len(self.png_blueprint[x][y])):
+                    if self.png_blueprint.count(self.png_blueprint[x][y][z_index]) > 1:
+                        self.png_blueprint[x][y][z_index] = -1
+        while self.png_blueprint.count(-1) > 0:
+            self.png_blueprint.remove(-1)
+        for x in range(len(self.png_blueprint)):
+            for y in range(len(self.png_blueprint[x])):
+                self.png_blueprint[x][y].sort()        
 
-        # print(self.png_blueprint)
-
-    def print_png(self):
-        png_image = [[0 for x in range(self.resolution_px2[0])] for y in range(self.resolution_px2[1])]
-
-        #print(self.png_blueprint)
-
+    def print_blueprint(self):
+        png_image = [[0 for x in range(self.resolution[0])] for y in range(self.resolution[1])]
         for layer in range(self.num_layers):
-            for x in range(len(png_image)):
-                for y in range(len(png_image[x])):
+            for y in range(len(png_image)):
+                for x in range(len(png_image[y])):
                     for z in self.png_blueprint[x][y]:
-                        if layer == 0:
-                            # print("LAYER: ", layer)
+                        if layer == 0: 
                             if z == 0: 
-                                png_image[x][y] = 255
-                                # print("PNG Image: ", png_image[x][y])
+                                png_image[y][x] = 255
                         else:
-                            # print("LAYER: ", layer)
                             if z > (layer - 1) * self.layer_height_mm and z <= layer * self.layer_height_mm:
-                                if png_image[x][y] == 0:
-                                    png_image[x][y] = 255
-                                    # print("PNG Image: ", png_image[x][y])
+                                if png_image[y][x] == 0:
+                                    png_image[y][x] = 255
                                 else:
-                                    png_image[x][y] = 0
-                                    # print("PNG Image: ", png_image[x][y])
+                                    png_image[y][x] = 0
                             else:
                                 pass
-            # print("IMAGE: ", png_image)
-
             file_name = str(layer).zfill(4)
+            export_png([self.resolution[0],self.resolution[1]], file_name, png_image)
 
-            self.export_png(file_name, png_image)
-
-    def export_png(self, file_base_name, png_image):
-        # png_image = np.array(png_image)
-        # print(png_image)
-        path = os.getcwd()
-        file_name = "{}/slices/{}.png".format(path, file_base_name)
-        png_file = open(file_name, 'wb')
-        # png.from_array(png_image, mode="L", info= {height = 2, width = 2}).save("/tmp/foo.png")
-        write_png = png.Writer(self.resolution_px2[0], self.resolution_px2[1], greyscale = True)
-        write_png.write(png_file, png_image)
-        png_file.close()
-
-
-    
+def export_png(resolution, file_base_name, png_image):
+    path = os.getcwd()
+    file_name = "{}/slices/{}.png".format(path, file_base_name)
+    png_file = open(file_name, 'wb')
+    write_png = png.Writer(resolution[0], resolution[1], greyscale = True)
+    write_png.write(png_file, png_image)
+    png_file.close()
 
 if __name__ == "__main__":
     my_print = print_data()
-    my_print.import_stl("./STL_Files/Sphere.stl")
+    my_print.import_stl("./STL_Files/small_diamond_cutout.stl")
     print("Read Values")
     my_print.read_values()
     # mesh = my_print.get_significant_meshes()
     # my_print.map_mesh_xyz(mesh[0])
+    my_print.get_significant_meshes()
+    # print(my_print.significant_meshes)
     print("Make Blueprint")
-    my_print.make_3D_image_blueprint()
+    my_print.make_blueprint()
     print("Print Images")
-    my_print.print_png()
+    my_print.print_blueprint()
     pass
 
 
